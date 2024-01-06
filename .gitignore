@@ -27,3 +27,6 @@ scripts/slither-results/*
 !scripts/slither-results/.gitkeep
 
 abi
+
+# Certora
+.certora_internal/*
