@@ -4,10 +4,13 @@ methods {
     function allowance(address, address) external returns (uint256) envfree;
     function balanceOf(address) external returns (uint256) envfree;
     function totalSupply() external returns (uint256) envfree;
+    function SYSTEM_CONTRACT_ADDRESS() external returns (address) envfree;
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
     function _.gasCoinZRC20ByChainId(uint256) external => CONSTANT;
     function _.gasPriceByChainId(uint256) external => CONSTANT;
 }
+
+definition FUNG_MOD_ADDR returns address = 0x735b14BB79463307AAcBED86DAf3322B1e6226aB;
 
 ghost balanceSum() returns mathint {
     init_state axiom balanceSum() == 0;
@@ -146,4 +149,44 @@ rule burn(uint256 amount) {
     assert balSenderAfter == balSenderBefore - amount, "tokens not burned as expected";
     assert balOtherAfter == balOtherBefore, "other address had a balance modified unexpectedly";
     assert totalSupplyAfter == totalSupplyBefore - amount, "totalSupply not decreased as expected";
+}
+
+rule burn_revert(uint256 amount) {
+    env e;
+
+    mathint balSenderBefore = balanceOf(e.msg.sender);
+    mathint totalSupplyBefore = totalSupply();
+
+    burn@withrevert(e, amount);
+
+    bool revert1 = e.msg.value != 0;
+    bool revert2 = e.msg.sender == 0;
+    bool revert3 = balSenderBefore < to_mathint(amount);
+    bool revert4 = totalSupplyBefore < to_mathint(amount);
+
+    assert lastReverted <=> revert1 || revert2 || revert3 || revert4,
+                            "revert conditions violated or incomplete";
+}
+
+rule deposit(address to, uint256 amount) {
+    env e;
+
+    address other;
+    require other != to;
+
+    mathint balToBefore = balanceOf(to);
+    mathint balOtherBefore = balanceOf(other);
+    mathint totalSupplyBefore = totalSupply();
+
+    bool ret = deposit(e, to, amount);
+
+    assert ret, "deposit returned false";
+
+    mathint balToAfter = balanceOf(to);
+    mathint balOtherAfter = balanceOf(other);
+    mathint totalSupplyAfter = totalSupply();
+
+    assert balToAfter == balToBefore + amount, "tokens not minted as expected";
+    assert balOtherAfter == balOtherBefore, "other address had a balance modified unexpectedly";
+    assert totalSupplyAfter == totalSupplyBefore + amount, "totalSupply not increased as expected";
 }
