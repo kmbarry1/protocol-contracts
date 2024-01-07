@@ -20,6 +20,22 @@ hook Sstore _balances[KEY address a] uint256 balance (uint256 old_balance) STORA
 invariant balanceSum_equals_totalSupply()
     balanceSum() == to_mathint(totalSupply());
 
+rule storageAffected(method f) {
+    env e;
+
+    mathint totalSupplyBefore = totalSupply();
+
+    calldataarg args;
+    f(e, args);
+
+    mathint totalSupplyAfter = totalSupply();
+
+    assert totalSupplyAfter != totalSupplyBefore
+        => f.selector == sig:burn(uint256).selector ||
+           f.selector == sig:deposit(address, uint256).selector ||
+           f.selector == sig:withdraw(bytes memory, uint256).selector;
+}
+
 rule transfer(address recipient, uint256 amount) {
     env e;
 
