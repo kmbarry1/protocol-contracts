@@ -20,6 +20,19 @@ hook Sstore _balances[KEY address a] uint256 balance (uint256 old_balance) STORA
 invariant balanceSum_equals_totalSupply()
     balanceSum() == to_mathint(totalSupply());
 
+rule approve(address spender, uint256 value) {
+    env e;
+    approve(e, spender, value);
+    assert allowance(e.msg.sender, spender) == value, "approve did not set allowance as expected";
+}
+
+rule approve_revert(address spender, uint256 value) {
+    env e;
+    approve@withrevert(e, spender, value);
+    bool revert1 = e.msg.value > 0;
+    assert lastReverted <=> revert1, "revert conditions violated or incomplete";
+}
+
 rule storageAffected(method f) {
     env e;
 
@@ -112,15 +125,25 @@ rule transferFrom_revert(address sender, address recipient, uint256 amount) {
                             "revert conditions violated or incomplete";
 }
 
-rule approve(address spender, uint256 value) {
+rule burn(uint256 amount) {
     env e;
-    approve(e, spender, value);
-    assert allowance(e.msg.sender, spender) == value, "approve did not set allowance as expected";
-}
 
-rule approve_revert(address spender, uint256 value) {
-    env e;
-    approve@withrevert(e, spender, value);
-    bool revert1 = e.msg.value > 0;
-    assert lastReverted <=> revert1, "revert conditions violated or incomplete";
+    address other;
+    require other != e.msg.sender;
+
+    mathint balSenderBefore = balanceOf(e.msg.sender);
+    mathint balOtherBefore = balanceOf(other);  // this allows us to prove no other balances are affected
+    mathint totalSupplyBefore = totalSupply();
+
+    bool ret = burn(e, amount);
+
+    assert ret, "burn returned false";
+
+    mathint balSenderAfter = balanceOf(e.msg.sender);
+    mathint balOtherAfter = balanceOf(other);
+    mathint totalSupplyAfter = totalSupply();
+
+    assert balSenderAfter == balSenderBefore - amount, "tokens not burned as expected";
+    assert balOtherAfter == balOtherBefore, "other address had a balance modified unexpectedly";
+    assert totalSupplyAfter == totalSupplyBefore - amount, "totalSupply not decreased as expected";
 }
