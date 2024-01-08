@@ -209,3 +209,32 @@ rule deposit_revert(address to, uint256 amount) {
     assert lastReverted <=> revert1 || revert2 || revert3 || revert4 || revert5,
                             "revert conditions violated or incomplete";
 }
+
+rule withdraw(bytes to, uint256 amount) {
+    env e;
+
+    address other;
+    require other != e.msg.sender;
+
+    mathint balSenderBefore = balanceOf(e.msg.sender);
+    mathint balOtherBefore = balanceOf(other);
+    mathint totalSupplyBefore = totalSupply();
+
+    bool ret = withdraw(e, to, amount);
+
+    assert ret, "withdraw returned false";
+
+    mathint balSenderAfter = balanceOf(e.msg.sender);
+    mathint balOtherAfter = balanceOf(other);
+    mathint totalSupplyAfter = totalSupply();
+
+    // This assertion is weakened due to the fact that the gas token can be the same as the current contract.
+    // With more time, I would split the spec into cases to get complete coverage.
+    assert balSenderAfter <= balSenderBefore - amount, "withdraw did not decrease sender's balance";
+
+    // Similar reasoning here as above.
+    assert balOtherAfter == balOtherBefore || other == FUNG_MOD_ADDR(),
+           "withdraw modified an unexpected address's balance";
+
+    assert totalSupplyAfter == totalSupplyBefore - amount, "withdraw did not update totalSupply correctly";
+}
