@@ -5,6 +5,8 @@ methods {
     function balanceOf(address) external returns (uint256) envfree;
     function totalSupply() external returns (uint256) envfree;
     function SYSTEM_CONTRACT_ADDRESS() external returns (address) envfree;
+    function GAS_LIMIT() external returns (uint256) envfree;
+    function PROTOCOL_FLAT_FEE() external returns (uint256) envfree;
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
     function _.gasCoinZRC20ByChainId(uint256) external => CONSTANT;
     function _.gasPriceByChainId(uint256) external => CONSTANT;
@@ -23,6 +25,56 @@ hook Sstore _balances[KEY address a] uint256 balance (uint256 old_balance) STORA
 invariant balanceSum_equals_totalSupply()
     balanceSum() == to_mathint(totalSupply());
 
+rule storageAffected(method f) {
+    env e;
+
+    address addr1;
+    address addr2;
+
+    address systemContractBefore = SYSTEM_CONTRACT_ADDRESS();
+    uint256 gasLimitBefore = GAS_LIMIT();
+    uint256 protocolFlatFeeBefore = PROTOCOL_FLAT_FEE();
+    uint256 totalSupplyBefore = totalSupply();
+    uint256 balanceBefore = balanceOf(addr1);
+    uint256 allowanceBefore = allowance(addr1, addr2);
+
+    calldataarg args;
+    f(e, args);
+
+    address systemContractAfter = SYSTEM_CONTRACT_ADDRESS();
+    uint256 gasLimitAfter = GAS_LIMIT();
+    uint256 protocolFlatFeeAfter = PROTOCOL_FLAT_FEE();
+    uint256 totalSupplyAfter = totalSupply();
+    uint256 balanceAfter = balanceOf(addr1);
+    uint256 allowanceAfter = allowance(addr1, addr2);
+
+    assert systemContractAfter != systemContractBefore
+        => f.selector == sig:updateSystemContractAddress(address).selector;
+
+    assert gasLimitAfter != gasLimitBefore
+        => f.selector == sig:updateGasLimit(uint256).selector;
+
+    assert protocolFlatFeeAfter != protocolFlatFeeBefore
+        => f.selector == sig:updateProtocolFlatFee(uint256).selector;
+
+    assert balanceAfter != balanceBefore
+        => f.selector == sig:transfer(address, uint256).selector ||
+           f.selector == sig:transferFrom(address, address, uint256).selector ||
+           f.selector == sig:burn(uint256).selector ||
+           f.selector == sig:deposit(address, uint256).selector ||
+           f.selector == sig:withdraw(bytes memory, uint256).selector;
+
+    assert allowanceAfter != allowanceBefore
+        => f.selector == sig:approve(address, uint256).selector ||
+           f.selector == sig:transferFrom(address, address, uint256).selector ||
+           f.selector == sig:withdraw(bytes memory, uint256).selector;
+
+    assert totalSupplyAfter != totalSupplyBefore
+        => f.selector == sig:burn(uint256).selector ||
+           f.selector == sig:deposit(address, uint256).selector ||
+           f.selector == sig:withdraw(bytes memory, uint256).selector;
+}
+
 rule approve(address spender, uint256 value) {
     env e;
     approve(e, spender, value);
@@ -34,22 +86,6 @@ rule approve_revert(address spender, uint256 value) {
     approve@withrevert(e, spender, value);
     bool revert1 = e.msg.value > 0;
     assert lastReverted <=> revert1, "revert conditions violated or incomplete";
-}
-
-rule storageAffected(method f) {
-    env e;
-
-    mathint totalSupplyBefore = totalSupply();
-
-    calldataarg args;
-    f(e, args);
-
-    mathint totalSupplyAfter = totalSupply();
-
-    assert totalSupplyAfter != totalSupplyBefore
-        => f.selector == sig:burn(uint256).selector ||
-           f.selector == sig:deposit(address, uint256).selector ||
-           f.selector == sig:withdraw(bytes memory, uint256).selector;
 }
 
 rule transfer(address recipient, uint256 amount) {
