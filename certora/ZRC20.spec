@@ -91,7 +91,9 @@ rule approve_revert(address spender, uint256 value) {
     env e;
     approve@withrevert(e, spender, value);
     bool revert1 = e.msg.value > 0;
-    assert lastReverted <=> revert1, "revert conditions violated or incomplete";
+    bool revert2 = e.msg.sender == 0;
+    bool revert3 = spender == 0;
+    assert lastReverted <=> revert1 || revert2 || revert3, "revert conditions violated or incomplete";
 }
 
 rule transfer(address recipient, uint256 amount) {
