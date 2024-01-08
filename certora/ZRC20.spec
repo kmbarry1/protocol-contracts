@@ -190,3 +190,22 @@ rule deposit(address to, uint256 amount) {
     assert balOtherAfter == balOtherBefore, "other address had a balance modified unexpectedly";
     assert totalSupplyAfter == totalSupplyBefore + amount, "totalSupply not increased as expected";
 }
+
+rule deposit_revert(address to, uint256 amount) {
+    env e;
+
+    mathint balToBefore = balanceOf(to);
+    mathint totalSupplyBefore = totalSupply();
+    address systemContract = SYSTEM_CONTRACT_ADDRESS();
+
+    deposit@withrevert(e, to, amount);
+
+    bool revert1 = e.msg.value != 0;
+    bool revert2 = e.msg.sender != FUNG_MOD_ADDR() && e.msg.sender != systemContract;
+    bool revert3 = to == 0;
+    bool revert4 = totalSupplyBefore + amount > max_uint256;
+    bool revert5 = balToBefore + amount > max_uint256;
+
+    assert lastReverted <=> revert1 || revert2 || revert3 || revert4 || revert5,
+                            "revert conditions violated or incomplete";
+}
