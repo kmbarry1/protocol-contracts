@@ -4,9 +4,11 @@ methods {
     function allowance(address, address) external returns (uint256) envfree;
     function balanceOf(address) external returns (uint256) envfree;
     function totalSupply() external returns (uint256) envfree;
+    function FUNGIBLE_MODULE_ADDRESS() external returns (address) envfree;
     function SYSTEM_CONTRACT_ADDRESS() external returns (address) envfree;
     function GAS_LIMIT() external returns (uint256) envfree;
     function PROTOCOL_FLAT_FEE() external returns (uint256) envfree;
+    function withdrawGasFee() external returns (address, uint256) envfree;
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
     function _.gasCoinZRC20ByChainId(uint256) external => CONSTANT;
     function _.gasPriceByChainId(uint256) external => CONSTANT;
@@ -73,6 +75,10 @@ rule storageAffected(method f) {
         => f.selector == sig:burn(uint256).selector ||
            f.selector == sig:deposit(address, uint256).selector ||
            f.selector == sig:withdraw(bytes memory, uint256).selector;
+}
+
+rule fungible_module_address_is_correct() {
+    assert FUNGIBLE_MODULE_ADDRESS() == FUNG_MOD_ADDR();
 }
 
 rule approve(address spender, uint256 value) {
@@ -273,4 +279,25 @@ rule withdraw(bytes to, uint256 amount) {
            "withdraw modified an unexpected address's balance";
 
     assert totalSupplyAfter == totalSupplyBefore - amount, "withdraw did not update totalSupply correctly";
+}
+
+rule withdraw_revert(bytes to, uint256 amount) {
+    env e;
+
+    mathint balSenderBefore = balanceOf(e.msg.sender);
+    mathint totalSupplyBefore = totalSupply();
+    mathint gasLimit = GAS_LIMIT();
+    mathint protocolFlatFee = PROTOCOL_FLAT_FEE();
+
+    withdraw@withrevert(e, to, amount);
+
+    bool revert1 = e.msg.value > 0;
+    bool revert2 = e.msg.sender == 0;
+    bool revert3 = balSenderBefore < to_mathint(amount);
+    bool revert4 = totalSupplyBefore < to_mathint(amount);
+
+    // Incomplete due (1) this contract may be its own gas token, and (2) choice of dipatching for system
+    // contract calls. With more time both could be worked around.
+    assert revert1 || revert2 || revert3 || revert4 => lastReverted,
+           "withdraw did not revert when expected";
 }
